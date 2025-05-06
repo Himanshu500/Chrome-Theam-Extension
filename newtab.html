@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HackerSpace</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="lib/matter.min.js"></script>
+  <script src="lib/three.min.js"></script>
+  <script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div id="time-display" class="time-display">00:00:00</div>
+      <div id="date-display" class="date-display">Monday, January 1</div>
+    </div>
+    
+    <div class="search-container">
+      <div class="search-wrapper">
+        <div class="search-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </div>
+        <input type="text" id="search-input" placeholder="Execute search query..." autofocus>
+        <div class="search-actions">
+          <div class="voice-search">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="shortcuts-container" class="shortcuts-container"></div>
+    
+    <div class="widgets-container">
+      <div class="widget" id="tasks-widget">
+        <div class="widget-header">Task Sequence</div>
+        <div class="widget-content">
+          <ul id="tasks-list">
+            <li class="task-item">
+              <input type="checkbox" id="task1">
+              <label for="task1">Initialize task list</label>
+            </li>
+          </ul>
+          <div class="add-task">
+            <input type="text" id="new-task" placeholder="New task operation...">
+            <button id="add-task-btn">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <canvas id="particles-canvas"></canvas>
+  <canvas id="background-canvas"></canvas>
+  
+  <div id="settings-toggle" class="settings-toggle">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+  </div>
+
+  <div id="settings-panel" class="settings-panel">
+    <div class="settings-header">
+      <h2>System Configuration</h2>
+      <button id="close-settings">×</button>
+    </div>
+    <div class="settings-content">
+      <div class="settings-section">
+        <h3>Theme Protocol</h3>
+        <div class="theme-selector">
+          <div class="theme-option selected" data-theme="hacker">Hacker</div>
+          <div class="theme-option" data-theme="cyberpunk">Cyberpunk</div>
+          <div class="theme-option" data-theme="matrix">Matrix</div>
+          <div class="theme-option" data-theme="space">Space</div>
+        </div>
+        
+        <!-- Custom Color Inputs -->
+        <div class="custom-colors" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--widget-border);">
+            <h4>Custom Colors (Overrides Preset)</h4>
+            <div class="setting-control color-control">
+                <label for="color-bg">Background</label>
+                <input type="color" id="color-bg" data-css-var="--bg-color">
+            </div>
+            <div class="setting-control color-control">
+                <label for="color-text">Primary Text</label>
+                <input type="color" id="color-text" data-css-var="--text-color">
+            </div>
+            <div class="setting-control color-control">
+                <label for="color-text-secondary">Secondary Text</label>
+                <input type="color" id="color-text-secondary" data-css-var="--text-secondary">
+            </div>
+            <div class="setting-control color-control">
+                <label for="color-accent">Accent</label>
+                <input type="color" id="color-accent" data-css-var="--accent-color">
+            </div>
+             <div class="setting-control color-control">
+                <label for="color-widget-bg">Widget BG (Alpha ignored)</label> <!-- Note alpha channel might not be settable via input type=color -->
+                <input type="color" id="color-widget-bg" data-css-var="--widget-bg-base"> <!-- Save base color only -->
+            </div>
+            <small style="opacity: 0.7;">Changes apply immediately. Select a preset to disable custom colors.</small>
+        </div>
+        <!-- End Custom Color Inputs -->
+        
+      </div>
+      
+      <!-- Animation Selection -->
+      <div class="settings-section">
+          <h3>Animation Themes</h3>
+          <div class="setting-control">
+              <label>Foreground (Particles)</label>
+              <select id="setting-foreground-animation">
+                  <option value="physics">Physics Particles</option>
+                  <option value="matrix">Matrix Rain</option>
+                  <!-- <option value="circuits">Circuit Board</option> -->
+                  <!-- <option value="web">Geometric Web</option> -->
+                  <option value="none">None</option>
+              </select>
+          </div>
+           <div class="setting-control">
+              <label>Background (3D)</label>
+              <select id="setting-background-animation">
+                  <option value="starfield">Starfield</option>
+                  <option value="universe">Universe</option>
+                  <!-- <option value="voxel">Voxel Grid</option> -->
+                  <option value="none">None</option>
+              </select>
+          </div>
+      </div>
+      <!-- End Animation Selection -->
+      
+      <div class="settings-section">
+        <h3>Animation Parameters</h3>
+        <div class="setting-control">
+          <label for="particle-density">Particle Density</label>
+          <input type="range" id="particle-density" min="0" max="100" value="50">
+        </div>
+        <div class="setting-control">
+          <label for="animation-speed">Animation Speed</label>
+          <input type="range" id="animation-speed" min="0" max="100" value="50">
+        </div>
+        <div class="setting-control">
+          <label for="physics-intensity">Physics Intensity</label>
+          <input type="range" id="physics-intensity" min="0" max="100" value="50">
+        </div>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Shortcut Management</h3>
+        <button id="add-shortcut-btn" class="settings-button">Add New Shortcut</button>
+        <div id="shortcuts-editor"></div>
+        <button id="reset-settings-btn" class="settings-button danger-button" style="margin-top: 20px;">Reset All Settings</button>
+      </div>
+      
+      <!-- Import/Export Section -->
+      <div class="settings-section">
+        <h3>Data Management</h3>
+        <button id="export-data-btn" class="settings-button" style="margin-right: 10px;">Export Data</button>
+        <button id="import-data-btn" class="settings-button">Import Data</button>
+        <input type="file" id="import-file-input" accept=".json" style="display: none;">
+        <small style="display: block; margin-top: 10px; opacity: 0.7;">Export/Import includes settings, shortcuts, and tasks.</small>
+      </div>
+      <!-- End Import/Export Section -->
+      
+      <!-- Add Plugin Shortcut Section -->
+      <div class="settings-section">
+        <h3>Add Plugin Shortcut</h3>
+        <div class="form-group">
+          <label for="plugin-folder-name">Plugin Folder Name (inside /plugins/)</label>
+          <input type="text" id="plugin-folder-name" placeholder="e.g., my-chart-tool">
+        </div>
+        <div class="form-group">
+          <label for="plugin-icon-url">Custom Icon URL (Optional)</label>
+          <input type="text" id="plugin-icon-url" placeholder="Leave blank to check for /plugins/.../icon.png">
+        </div>
+        <button id="add-plugin-shortcut-btn" class="settings-button">Add Plugin Shortcut</button>
+        <small style="display: block; margin-top: 10px; opacity: 0.7;">Folder must exist in the extension's 'plugins/' directory and contain an 'index.html'. Icon priority: Custom URL > icon.png > default.</small>
+      </div>
+      <!-- End Add Plugin Shortcut Section -->
+      
+      <!-- New Widget Visibility Section -->
+      <div class="settings-section">
+        <h3>Widget Visibility</h3>
+        <div class="setting-control checkbox-control">
+          <input type="checkbox" id="toggle-tasks-widget" data-widget-id="tasks-widget">
+          <label for="toggle-tasks-widget">Show Tasks Widget</label>
+        </div>
+        <!-- Add more checkboxes here if other widgets like Clock, Shortcuts display, Search etc. are made optional -->
+         <div class="setting-control checkbox-control">
+           <input type="checkbox" id="toggle-shortcuts-widget" data-widget-id="shortcuts-container">
+           <label for="toggle-shortcuts-widget">Show Shortcuts Area</label>
+         </div>
+         <div class="setting-control checkbox-control">
+           <input type="checkbox" id="toggle-search-widget" data-widget-id="search-container">
+           <label for="toggle-search-widget">Show Search Bar</label>
+         </div>
+         <div class="setting-control checkbox-control">
+            <input type="checkbox" id="toggle-clock-widget" data-widget-id="header">
+            <label for="toggle-clock-widget">Show Clock/Date</label>
+         </div>
+      </div>
+      <!-- End Widget Visibility Section -->
+      
+    </div>
+  </div>
+
+  <script src="js/background.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/universeAnimation.js"></script>
+  <script src="js/shortcuts.js"></script>
+  <script src="js/clock.js"></script>
+  <script src="js/tasks.js"></script>
+  <script src="js/matrixRain.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/animationManager.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html> 
