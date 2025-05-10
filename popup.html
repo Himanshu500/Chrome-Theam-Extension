@@ -39,6 +39,7 @@
       border-radius: 6px;
       margin-bottom: 8px;
       transition: all 0.2s ease;
+      user-select: none;
     }
     
     .menu-item:hover {
@@ -89,23 +90,6 @@
   
   <div class="version">Version 1.0</div>
   
-  <script>
-    document.getElementById('new-tab').addEventListener('click', () => {
-      chrome.tabs.create({ url: 'newtab.html' });
-    });
-    
-    document.getElementById('settings').addEventListener('click', () => {
-      chrome.tabs.create({ url: 'newtab.html' }, (tab) => {
-        // Send message to open settings
-        setTimeout(() => {
-          chrome.tabs.sendMessage(tab.id, { action: 'openSettings' });
-        }, 500);
-      });
-    });
-    
-    document.getElementById('feedback').addEventListener('click', () => {
-      chrome.tabs.create({ url: 'https://github.com/yourusername/hackerspace/issues' });
-    });
-  </script>
+  <script src="js/popup.js"></script>
 </body>
 </html> 
