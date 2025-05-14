@@ -25,6 +25,7 @@ class SettingsManager {
     this.physicsIntensity = document.getElementById('physics-intensity');
     this.addShortcutBtn = document.getElementById('add-shortcut-btn');
     this.shortcutsEditor = document.getElementById('shortcuts-editor');
+    this.openShortcutsNewTabToggle = document.getElementById('toggle-open-shortcuts-new-tab');
     
     // --- Add Checks for Slider Elements ---
     if (!this.particleDensity) console.warn('Particle Density slider element not found.');
@@ -33,12 +34,20 @@ class SettingsManager {
     if (!this.addShortcutBtn) console.warn('Add Shortcut button element not found.');
     if (!this.shortcutsEditor) console.warn('Shortcuts editor element not found.');
     if (!this.themeOptions || this.themeOptions.length === 0) console.warn('Theme option elements not found.');
+    if (!this.openShortcutsNewTabToggle) console.warn('Open Shortcuts in New Tab toggle not found.');
     // --- End Checks ---
     
     // --- Widget Toggle Listeners ---
     this.widgetToggleCheckboxes = document.querySelectorAll('.settings-section input[type="checkbox"][data-widget-id]');
     this.widgetToggleCheckboxes.forEach(checkbox => {
-        const settingKey = `show${checkbox.id.split('-')[1].charAt(0).toUpperCase() + checkbox.id.split('-')[1].slice(1)}`; // e.g., showTasksWidget
+        // Revised settingKey construction for event listeners
+        const parts = checkbox.id.split('-');
+        let baseName = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+        if (parts[2] && parts[2].toLowerCase() === 'widget') {
+            baseName += parts[2].charAt(0).toUpperCase() + parts[2].slice(1);
+        }
+        const settingKey = `show${baseName}`;
+
         checkbox.addEventListener('change', () => {
             this.settings[settingKey] = checkbox.checked;
             this.applyWidgetVisibility();
@@ -113,6 +122,7 @@ class SettingsManager {
       particleDensity: 50,
       animationSpeed: 50,
       physicsIntensity: 50,
+      openShortcutsInNewTab: true, // Added new setting default
       // Default visibility states
       showTasksWidget: true,
       showShortcutsWidget: true,
@@ -243,6 +253,21 @@ class SettingsManager {
     setupAnimTypeListener(this.foregroundAnimSelect, 'foregroundAnimationType', 'switchForegroundAnimation');
     setupAnimTypeListener(this.backgroundAnimSelect, 'backgroundAnimationType', 'switchBackgroundAnimation');
     // --- End Animation Type Selectors ---
+
+    // --- New Toggle Listener for Open Shortcuts in New Tab ---
+    if (this.openShortcutsNewTabToggle) {
+        this.openShortcutsNewTabToggle.addEventListener('change', () => {
+            this.settings.openShortcutsInNewTab = this.openShortcutsNewTabToggle.checked;
+            // Debounce saving settings
+            clearTimeout(this.saveDebounceTimer);
+            this.saveDebounceTimer = setTimeout(() => {
+                this.saveSettings();
+                console.log('Settings saved after openShortcutsInNewTab toggle change.');
+                this.showSaveFeedback();
+            }, 500);
+        });
+    }
+    // --- End New Toggle Listener ---
   }
   
   loadSettings() {
@@ -274,6 +299,7 @@ class SettingsManager {
     if (this.particleDensity) this.particleDensity.value = this.settings.particleDensity;
     if (this.animationSpeed) this.animationSpeed.value = this.settings.animationSpeed;
     if (this.physicsIntensity) this.physicsIntensity.value = this.settings.physicsIntensity;
+    if (this.openShortcutsNewTabToggle) this.openShortcutsNewTabToggle.checked = !!this.settings.openShortcutsInNewTab;
     
     // Apply settings to the relevant components (like ParticleSystem)
     this.applySettingChange('particleDensity', this.settings.particleDensity);
@@ -393,6 +419,16 @@ class SettingsManager {
                 vars = { '--bg-color': '#030014', '--text-color': '#e0e4fc', '--text-secondary': '#a4b1fb', '--accent-color': '#7b88ff', '--widget-bg-base': '#0d1030' };
                 document.body.classList.add('theme-space');
                 break;
+            case 'codebreaker': // New Theme Case
+                vars = {
+                    '--bg-color': '#000000', // Deep black
+                    '--text-color': '#00FF00', // Bright green (classic terminal)
+                    '--text-secondary': '#009900', // Darker green
+                    '--accent-color': '#33FFFF', // Cyan / Electric blue for glitches/accents
+                    '--widget-bg-base': '#050505'  // Very dark grey for widgets
+                };
+                document.body.classList.add('theme-codebreaker');
+                break;
             default: // Fallback to hacker
                 vars = { '--bg-color': '#080c14', '--text-color': '#6bf6ff', '--text-secondary': '#57c7cc', '--accent-color': '#00e5ff', '--widget-bg-base': '#0d1623' };
                 document.body.classList.add('theme-hacker');
@@ -427,8 +463,26 @@ class SettingsManager {
         document.body.classList.add('theme-custom'); 
     }
 
+    // Manage CodeBreakerGrid and other theme-specific animations
+    if (window.codeBreakerGridInstance) {
+        if (currentThemeType === 'preset' && presetTheme === 'codebreaker') {
+            // Stop generic background animation if CodeBreaker theme is active
+            if (window.animationManager && typeof window.animationManager.switchBackgroundAnimation === 'function') {
+                window.animationManager.switchBackgroundAnimation('none'); 
+            }
+            window.codeBreakerGridInstance.start();
+        } else {
+            window.codeBreakerGridInstance.stop();
+            // Restore generic background animation if another theme is active or custom colors are used
+            if (window.animationManager && typeof window.animationManager.switchBackgroundAnimation === 'function') {
+                window.animationManager.switchBackgroundAnimation(this.settings.backgroundAnimationType);
+            }
+        }
+    } else {
+        console.warn('CodeBreakerGrid instance not found when trying to apply theme.');
+    }
+
     // Apply shared derived variables (like widget-bg with alpha, accent-glow)
-    // This needs to happen AFTER base colors are set by either preset or custom
     this.applyDerivedStyles();
   }
   
@@ -760,7 +814,7 @@ class SettingsManager {
       </div>
     `;
     
-    this.shortcutsEditor.appendChild(form);
+    this.shortcutsEditor.prepend(form);
     
     const urlInput = form.querySelector('#shortcut-url');
     const nameInput = form.querySelector('#shortcut-name');
@@ -1079,19 +1133,32 @@ class SettingsManager {
   
   // --- New Function: Apply Widget Visibility ---
   applyWidgetVisibility() {
-      console.log("Applying widget visibility settings:", this.settings);
+      console.log("Applying widget visibility settings:", JSON.parse(JSON.stringify(this.settings)));
       this.widgetToggleCheckboxes.forEach(checkbox => {
           const widgetId = checkbox.dataset.widgetId;
-          const settingKey = `show${checkbox.id.split('-')[1].charAt(0).toUpperCase() + checkbox.id.split('-')[1].slice(1)}`;
+          const parts = checkbox.id.split('-');
+          let baseName = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+          if (parts[2] && parts[2].toLowerCase() === 'widget') {
+              baseName += parts[2].charAt(0).toUpperCase() + parts[2].slice(1);
+          }
+          const settingKey = `show${baseName}`;
           const widgetElement = document.getElementById(widgetId);
 
-          // Update checkbox state based on loaded settings
-          checkbox.checked = !!this.settings[settingKey]; // Use !! to ensure boolean
+          if (widgetId === 'search-container' || widgetId === 'header') {
+            console.log(`DEBUG: Processing toggle for ${widgetId}. Associated checkbox ID: ${checkbox.id}`);
+            console.log(`DEBUG: Generated settingKey: ${settingKey}`);
+            console.log(`DEBUG: Value from this.settings[${settingKey}]: ${this.settings[settingKey]}`);
+            console.log(`DEBUG: Checkbox checked state will be set to: ${!!this.settings[settingKey]}`);
+          }
 
-          // Toggle widget visibility class
+          checkbox.checked = !!this.settings[settingKey];
+
           if (widgetElement) {
-              widgetElement.classList.toggle('widget-hidden', !this.settings[settingKey]);
-              console.log(`Widget ${widgetId} hidden: ${!this.settings[settingKey]}`);
+              const shouldBeHidden = !this.settings[settingKey];
+              widgetElement.classList.toggle('widget-hidden', shouldBeHidden);
+              if (widgetId === 'search-container' || widgetId === 'header') {
+                console.log(`DEBUG: Element ${widgetId} found. Should be hidden: ${shouldBeHidden}. ClassList after toggle: ${widgetElement.classList}`);
+              }
           } else {
               console.warn(`Widget element with ID '${widgetId}' not found for visibility toggle.`);
           }

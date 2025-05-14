@@ -17,6 +17,13 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Show a welcome message for first-time users
   showWelcomeMessage();
+
+  // Global instance for CodeBreakerGrid, if the canvas element exists
+  if (document.getElementById('codebreaker-grid-canvas')) {
+    window.codeBreakerGridInstance = new CodeBreakerGrid('codebreaker-grid-canvas');
+  } else {
+    console.warn('CodeBreakerGrid canvas not found, instance not created.');
+  }
 });
 
 // Initialize search functionality

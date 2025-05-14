@@ -188,21 +188,56 @@ class ShortcutManager {
   }
   
   handleShortcutClick(event) {
-    // Find the closest shortcut element
     const shortcutElement = event.target.closest('.shortcut');
     if (!shortcutElement) return;
-    
-    // Get the URL from the data attribute
+
     const url = shortcutElement.dataset.url;
-    
-    // Open the URL
-    window.open(url, '_blank');
-    
-    // Add click animation
-    shortcutElement.classList.add('clicked');
-    setTimeout(() => {
-      shortcutElement.classList.remove('clicked');
-    }, 300);
+    const nameElement = shortcutElement.querySelector('.shortcut-name');
+    const originalName = nameElement ? nameElement.textContent : '';
+
+    const openLink = () => {
+      chrome.storage.sync.get(['settings'], (result) => {
+        let openInNewTab = true;
+        if (result.settings && typeof result.settings.openShortcutsInNewTab !== 'undefined') {
+          openInNewTab = result.settings.openShortcutsInNewTab;
+        }
+        const target = openInNewTab ? '_blank' : '_self';
+        window.open(url, target);
+      });
+
+      shortcutElement.classList.add('clicked');
+      setTimeout(() => {
+        shortcutElement.classList.remove('clicked');
+      }, 300);
+    };
+
+    if (window.settingsManager && window.settingsManager.settings.theme === 'codebreaker' && nameElement) {
+      let iterations = 0;
+      const maxIterations = 15; // Controls speed/duration (15 * 50ms = 750ms)
+      const intervalTime = 50; // Milliseconds between character changes
+      const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+[]{};:/?,.<>';
+
+      nameElement.style.minWidth = nameElement.offsetWidth + 'px'; // Prevent layout shift
+      nameElement.style.textAlign = 'center';
+
+      const decryptInterval = setInterval(() => {
+        let newText = '';
+        for (let i = 0; i < originalName.length; i++) {
+          newText += randomChars.charAt(Math.floor(Math.random() * randomChars.length));
+        }
+        nameElement.textContent = newText;
+        iterations++;
+        if (iterations >= maxIterations) {
+          clearInterval(decryptInterval);
+          nameElement.textContent = originalName;
+          nameElement.style.minWidth = ''; // Reset minWidth
+          nameElement.style.textAlign = '';
+          openLink();
+        }
+      }, intervalTime);
+    } else {
+      openLink(); // Open link directly if not codebreaker theme or no name element
+    }
   }
   
   handleShortcutHover(event) {
