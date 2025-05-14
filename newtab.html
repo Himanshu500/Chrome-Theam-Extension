@@ -12,12 +12,12 @@
 </head>
 <body>
   <div class="container">
-    <div class="header">
+    <div class="header" id="header">
       <div id="time-display" class="time-display">00:00:00</div>
       <div id="date-display" class="date-display">Monday, January 1</div>
     </div>
     
-    <div class="search-container">
+    <div class="search-container" id="search-container">
       <div class="search-wrapper">
         <div class="search-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -54,6 +54,7 @@
   
   <canvas id="particles-canvas"></canvas>
   <canvas id="background-canvas"></canvas>
+  <canvas id="codebreaker-grid-canvas"></canvas>
   
   <div id="settings-toggle" class="settings-toggle">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -65,6 +66,14 @@
       <button id="close-settings">×</button>
     </div>
     <div class="settings-content">
+      <div class="setting-control checkbox-control slide-toggle-container" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--widget-border);">
+        <label for="toggle-open-shortcuts-new-tab" class="toggle-label-text">Open Shortcuts in New Tab</label>
+        <div>
+          <input type="checkbox" id="toggle-open-shortcuts-new-tab">
+          <label for="toggle-open-shortcuts-new-tab" class="visual-slide-toggle"></label>
+        </div>
+      </div>
+      
       <div class="settings-section">
         <h3>Theme Protocol</h3>
         <div class="theme-selector">
@@ -72,6 +81,7 @@
           <div class="theme-option" data-theme="cyberpunk">Cyberpunk</div>
           <div class="theme-option" data-theme="matrix">Matrix</div>
           <div class="theme-option" data-theme="space">Space</div>
+          <div class="theme-option" data-theme="codebreaker">Code Breaker</div>
         </div>
         
         <!-- Custom Color Inputs -->
@@ -94,8 +104,8 @@
                 <input type="color" id="color-accent" data-css-var="--accent-color">
             </div>
              <div class="setting-control color-control">
-                <label for="color-widget-bg">Widget BG (Alpha ignored)</label> <!-- Note alpha channel might not be settable via input type=color -->
-                <input type="color" id="color-widget-bg" data-css-var="--widget-bg-base"> <!-- Save base color only -->
+                <label for="color-widget-bg">Widget BG (Alpha ignored)</label>
+                <input type="color" id="color-widget-bg" data-css-var="--widget-bg-base">
             </div>
             <small style="opacity: 0.7;">Changes apply immediately. Select a preset to disable custom colors.</small>
         </div>
@@ -106,22 +116,19 @@
       <!-- Animation Selection -->
       <div class="settings-section">
           <h3>Animation Themes</h3>
-          <div class="setting-control">
+          <div class="setting-control select-container">
               <label>Foreground (Particles)</label>
               <select id="setting-foreground-animation">
                   <option value="physics">Physics Particles</option>
                   <option value="matrix">Matrix Rain</option>
-                  <!-- <option value="circuits">Circuit Board</option> -->
-                  <!-- <option value="web">Geometric Web</option> -->
                   <option value="none">None</option>
               </select>
           </div>
-           <div class="setting-control">
+           <div class="setting-control select-container">
               <label>Background (3D)</label>
               <select id="setting-background-animation">
                   <option value="starfield">Starfield</option>
                   <option value="universe">Universe</option>
-                  <!-- <option value="voxel">Voxel Grid</option> -->
                   <option value="none">None</option>
               </select>
           </div>
@@ -180,23 +187,34 @@
       <!-- New Widget Visibility Section -->
       <div class="settings-section">
         <h3>Widget Visibility</h3>
-        <div class="setting-control checkbox-control">
-          <input type="checkbox" id="toggle-tasks-widget" data-widget-id="tasks-widget">
-          <label for="toggle-tasks-widget">Show Tasks Widget</label>
+        <div class="setting-control checkbox-control slide-toggle-container">
+          <label for="toggle-tasks-widget" class="toggle-label-text">Show Tasks Widget</label>
+          <div>
+            <input type="checkbox" id="toggle-tasks-widget" data-widget-id="tasks-widget">
+            <label for="toggle-tasks-widget" class="visual-slide-toggle"></label>
+          </div>
         </div>
-        <!-- Add more checkboxes here if other widgets like Clock, Shortcuts display, Search etc. are made optional -->
-         <div class="setting-control checkbox-control">
-           <input type="checkbox" id="toggle-shortcuts-widget" data-widget-id="shortcuts-container">
-           <label for="toggle-shortcuts-widget">Show Shortcuts Area</label>
-         </div>
-         <div class="setting-control checkbox-control">
-           <input type="checkbox" id="toggle-search-widget" data-widget-id="search-container">
-           <label for="toggle-search-widget">Show Search Bar</label>
-         </div>
-         <div class="setting-control checkbox-control">
+        <div class="setting-control checkbox-control slide-toggle-container">
+          <label for="toggle-shortcuts-widget" class="toggle-label-text">Show Shortcuts Area</label>
+          <div>
+            <input type="checkbox" id="toggle-shortcuts-widget" data-widget-id="shortcuts-container">
+            <label for="toggle-shortcuts-widget" class="visual-slide-toggle"></label>
+          </div>
+        </div>
+        <div class="setting-control checkbox-control slide-toggle-container">
+          <label for="toggle-search-widget" class="toggle-label-text">Show Search Bar</label>
+          <div>
+            <input type="checkbox" id="toggle-search-widget" data-widget-id="search-container">
+            <label for="toggle-search-widget" class="visual-slide-toggle"></label>
+          </div>
+        </div>
+        <div class="setting-control checkbox-control slide-toggle-container">
+          <label for="toggle-clock-widget" class="toggle-label-text">Show Clock/Date</label>
+          <div>
             <input type="checkbox" id="toggle-clock-widget" data-widget-id="header">
-            <label for="toggle-clock-widget">Show Clock/Date</label>
-         </div>
+            <label for="toggle-clock-widget" class="visual-slide-toggle"></label>
+          </div>
+        </div>
       </div>
       <!-- End Widget Visibility Section -->
       
@@ -211,6 +229,7 @@
   <script src="js/tasks.js"></script>
   <script src="js/matrixRain.js"></script>
   <script src="js/settings.js"></script>
+  <script src="js/codeBreakerGrid.js"></script>
   <script src="js/animationManager.js"></script>
   <script src="js/main.js"></script>
 </body>

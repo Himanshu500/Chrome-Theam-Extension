@@ -47,6 +47,17 @@ canvas {
     z-index: -1; 
 }
 
+#codebreaker-grid-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; 
+  z-index: -1; /* Same as particles, adjust if needs to be above/below */
+  display: none; /* Initially hidden, will be shown by JS when theme is active */
+}
+
 .container {
   padding: 30px;
   min-height: 100vh;
@@ -605,6 +616,42 @@ canvas {
   100% { transform: scale(1); }
 }
 
+@keyframes text-glitch {
+  0% {
+    text-shadow: 0.05em 0 0 rgba(0, 255, 255, 0.75), -0.05em -0.025em 0 rgba(255, 0, 0, 0.75), -0.025em 0.05em 0 rgba(0, 255, 0, 0.75);
+    transform: translate(0);
+  }
+  20% {
+    text-shadow: -0.05em -0.025em 0 rgba(0, 255, 255, 0.75), 0.025em 0.025em 0 rgba(255, 0, 0, 0.75), -0.05em -0.05em 0 rgba(0, 255, 0, 0.75);
+    transform: translate(-1px, 1px);
+  }
+  40% {
+    text-shadow: 0.025em 0.05em 0 rgba(0, 255, 255, 0.75), 0.05em 0 0 rgba(255, 0, 0, 0.75), 0 -0.05em 0 rgba(0, 255, 0, 0.75);
+    transform: translate(1px, -1px);
+  }
+  60% {
+    text-shadow: 0.05em -0.025em 0 rgba(0, 255, 255, 0.75), -0.025em -0.025em 0 rgba(255, 0, 0, 0.75), -0.025em -0.05em 0 rgba(0, 255, 0, 0.75);
+    transform: translate(0);
+  }
+  80% {
+    text-shadow: -0.05em 0 0 rgba(0, 255, 255, 0.75), -0.025em 0.05em 0 rgba(255, 0, 0, 0.75), 0.05em -0.025em 0 rgba(0, 255, 0, 0.75);
+    transform: translate(-1px, 1px);
+  }
+  100% {
+    text-shadow: -0.025em -0.05em 0 rgba(0, 255, 255, 0.75), -0.05em -0.025em 0 rgba(255, 0, 0, 0.75), 0.05em 0.025em 0 rgba(0, 255, 0, 0.75);
+    transform: translate(0);
+  }
+}
+
+@keyframes scanlines {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 0 100%;
+  }
+}
+
 .pulse {
   animation: pulse 2s infinite ease-in-out;
 }
@@ -646,4 +693,215 @@ canvas {
 /* Utility class for widget visibility */
 .widget-hidden {
     display: none !important; /* Use important to override potential grid/flex styles */
+}
+
+/* Select dropdowns for Animation Themes */
+.setting-control select {
+  width: 100%;
+  background: rgba(13, 22, 35, 0.8);
+  border: var(--widget-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-color);
+  font-family: var(--primary-font);
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  transition: all var(--transition-speed);
+}
+
+.setting-control select:hover {
+  border-color: var(--accent-color);
+  box-shadow: var(--accent-glow);
+}
+
+.setting-control select:focus {
+  border-color: var(--accent-color);
+  box-shadow: var(--accent-glow);
+}
+
+/* Custom arrow for select boxes */
+.setting-control.select-container {
+  position: relative;
+}
+
+.setting-control.select-container::after {
+  content: '▼';
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  position: absolute;
+  right: 12px;
+  top: calc(50% + 8px);
+  pointer-events: none;
+}
+
+/* Plugin form input fields */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.form-group input[type="text"] {
+  width: 100%;
+  background: rgba(13, 22, 35, 0.8);
+  border: var(--widget-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-color);
+  font-family: var(--primary-font);
+  font-size: 0.9rem;
+  outline: none;
+  transition: all var(--transition-speed);
+}
+
+.form-group input[type="text"]:hover {
+  border-color: var(--accent-color);
+}
+
+.form-group input[type="text"]:focus {
+  border-color: var(--accent-color);
+  box-shadow: var(--accent-glow);
+}
+
+/* Slide Toggle Styles */
+.slide-toggle-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%; /* Ensure it takes full width available in its new position */
+}
+
+.slide-toggle-container .toggle-label-text {
+  color: var(--text-secondary); /* Style for the text part */
+  font-size: 0.9rem;
+  margin-right: 15px; /* Space between text and visual toggle */
+}
+
+.visual-slide-toggle {
+  cursor: pointer;
+  width: 50px;
+  height: 28px;
+  background: grey;
+  display: block;
+  border-radius: 28px;
+  position: relative;
+  transition: background-color var(--transition-speed) ease;
+}
+
+.visual-slide-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border-radius: 22px;
+  transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.slide-toggle-container input[type="checkbox"]:checked + .visual-slide-toggle {
+  background: var(--accent-color);
+}
+
+.slide-toggle-container input[type="checkbox"]:checked + .visual-slide-toggle::after {
+  left: calc(100% - 3px);
+  transform: translateX(-100%);
+}
+
+/* Hide the actual checkbox */
+.slide-toggle-container input[type="checkbox"] {
+  opacity: 0;
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+/* Theme-specific body classes (examples, more can be added) */
+body.theme-hacker {
+  /* Styles specific to hacker theme if not covered by CSS vars already */
+}
+
+body.theme-cyberpunk {
+  /* Styles specific to cyberpunk theme */
+}
+
+body.theme-matrix {
+  /* Styles specific to matrix theme */
+}
+
+body.theme-space {
+  /* Styles specific to space theme */
+}
+
+body.theme-codebreaker {
+  background-color: var(--bg-color); /* Ensured by JS, but good to have as a base */
+  color: var(--text-color);
+  /* We can add more specific overrides or new styles here for codebreaker */
+  /* For example, a very subtle noise background or scan lines */
+
+  /* Apply text glitch to specific elements */
+  .time-display,
+  .date-display,
+  .widget-header {
+    animation: text-glitch 1.5s infinite steps(1, end);
+  }
+
+  /* Optional: Add a more subtle, general text flicker to other elements */
+  /*
+  p, span, label, .shortcut-name {
+    animation: text-glitch 3s infinite steps(1, end) alternate;
+    animation-delay: calc(var(--random-delay, 0.1) * 1s); // Needs JS to set --random-delay
+  }
+  */
+
+  /* Add scanlines animation */
+  &::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* So it doesn't interfere with clicks */
+    background-image: linear-gradient(
+      transparent 50%,
+      rgba(0, 255, 255, 0.05) 50.5%,
+      rgba(0, 255, 255, 0.05) 51%,
+      transparent 51.5%
+    );
+    background-size: 100% 4px; /* Width of each line area, adjust 4px for thickness/spacing */
+    animation: scanlines 0.2s linear infinite;
+    z-index: -1; /* Sit behind content but above solid background */
+    opacity: 0.7;
+  }
+}
+
+body.theme-codebreaker::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* So it doesn't interfere with clicks */
+  background-image: linear-gradient(
+    transparent 50%,
+    rgba(0, 255, 255, 0.05) 50.5%,
+    rgba(0, 255, 255, 0.05) 51%,
+    transparent 51.5%
+  );
+  background-size: 100% 4px; /* Width of each line area, adjust 4px for thickness/spacing */
+  animation: scanlines 0.2s linear infinite;
+  z-index: -1; /* Sit behind content but above solid background */
+  opacity: 0.7;
 } 
