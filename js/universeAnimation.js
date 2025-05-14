@@ -21,6 +21,16 @@ class UniverseAnimation {
         this.animationFrameId = null;
         this.controls = null; // OrbitControls instance
         
+        // Joystick control elements
+        this.joystick = null;
+        this.joystickActive = false;
+        this.joystickPosition = { x: 0, y: 0 };
+        this.joystickMoveSpeed = 0.5;
+        
+        // Camera state saving
+        this.savedStates = {};
+        this.stateButtons = null;
+        
         this.init();
     }
     
@@ -59,6 +69,15 @@ class UniverseAnimation {
             // Handle error, maybe show a fallback?
         }
         
+        // Create joystick
+        this.createJoystick();
+        
+        // Create state management buttons
+        this.createStateControls();
+        
+        // Load saved states from localStorage
+        this.loadSavedStates();
+        
         // Event Listeners
         window.addEventListener('resize', this.handleResize);
         // OrbitControls handles mouse/touch input
@@ -72,16 +91,73 @@ class UniverseAnimation {
     async loadTexture(path) {
         return new Promise((resolve, reject) => {
             console.log("Loading texture:", path);
-            this.textureLoader.load(path, 
+            
+            // Create a loader with better timeout handling
+            const loader = new THREE.TextureLoader();
+            
+            // Set timeout to detect if loading takes too long (potentially missing file)
+            const timeoutId = setTimeout(() => {
+                console.warn(`Texture loading timeout for: ${path}`);
+            }, 5000); // 5 second timeout
+            
+            loader.load(
+                path, 
                 (texture) => {
-                    console.log("Loaded:", path);
+                    clearTimeout(timeoutId);
+                    console.log("Successfully loaded texture:", path);
+                    
+                    // Apply proper texture settings based on texture type
+                    if (path.includes('stars_milky_way.jpg')) {
+                        console.log("Applying special settings to milky way texture");
+                        texture.wrapS = THREE.RepeatWrapping;
+                        texture.wrapT = THREE.RepeatWrapping;
+                        texture.repeat.set(1, 1);
+                        texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+                    }
+                    
                     this.loadedTextures[path] = texture; // Store for disposal
                     resolve(texture);
                 }, 
-                undefined, // onProgress callback (optional)
+                // Progress callback
+                (xhr) => {
+                    const percentComplete = (xhr.loaded / xhr.total) * 100;
+                    console.log(`${path} loading: ${Math.round(percentComplete)}%`);
+                },
+                // Error callback
                 (err) => { 
+                    clearTimeout(timeoutId);
                     console.error(`Failed to load texture: ${path}`, err);
-                    reject(err); 
+                    // Create a basic colored texture as fallback
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 128;
+                    canvas.height = 128;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Use different fallback colors based on texture type
+                    if (path.includes('stars_milky_way.jpg')) {
+                        // Dark blue with stars for sky
+                        ctx.fillStyle = '#000820';
+                        ctx.fillRect(0, 0, 128, 128);
+                        // Add some "stars"
+                        ctx.fillStyle = 'white';
+                        for (let i = 0; i < 100; i++) {
+                            ctx.fillRect(
+                                Math.random() * 128,
+                                Math.random() * 128,
+                                Math.random() < 0.3 ? 2 : 1,
+                                Math.random() < 0.3 ? 2 : 1
+                            );
+                        }
+                    } else {
+                        // Generic gray texture for other objects
+                        ctx.fillStyle = '#555555';
+                        ctx.fillRect(0, 0, 128, 128);
+                    }
+                    
+                    const fallbackTexture = new THREE.CanvasTexture(canvas);
+                    this.loadedTextures[path] = fallbackTexture;
+                    console.log(`Created fallback texture for: ${path}`);
+                    resolve(fallbackTexture);
                 }
             );
         });
@@ -107,22 +183,52 @@ class UniverseAnimation {
             promises.push(this.loadTexture(texturePaths[key]).then(texture => ({ key, texture })));
         }
         
-        const results = await Promise.all(promises);
-        // Store textures in a more accessible way if needed, e.g., this.textures.sun = ...
-        results.forEach(result => {
-            this[result.key + 'Texture'] = result.texture; // e.g., this.sunTexture
-        });
-        console.log('All textures loaded.');
+        try {
+            const results = await Promise.all(promises);
+            // Store textures in a more accessible way if needed, e.g., this.textures.sun = ...
+            results.forEach(result => {
+                this[result.key + 'Texture'] = result.texture; // e.g., this.sunTexture
+            });
+            console.log('All textures loaded successfully.');
+        } catch (error) {
+            console.error('Error loading textures:', error);
+        }
     }
     // --- End Texture Loading ---
 
     createSkysphere() {
-        if (!this.skyTexture) return;
-        const geometry = new THREE.SphereGeometry(1500, 60, 40); // Large sphere
-        geometry.scale(-1, 1, 1); // Invert geometry to map texture inside
-        const material = new THREE.MeshBasicMaterial({ map: this.skyTexture });
-        this.starsBackground = new THREE.Mesh(geometry, material);
+        if (!this.skyTexture) {
+            console.error("Sky texture not available for background creation");
+            return;
+        }
+        
+        console.log("Creating sky background with texture:", this.skyTexture);
+        
+        // Make sure THREE is available and texture is properly loaded
+        if (typeof THREE === 'undefined') {
+            console.error("THREE is not defined when creating sky background");
+            return;
+        }
+        
+        // Create a skybox using a cube instead of a sphere for better image mapping
+        const geometry = new THREE.BoxGeometry(2000, 2000, 2000);
+        
+        // Create materials for each face with the same texture
+        const materials = [];
+        for (let i = 0; i < 6; i++) {
+            materials.push(new THREE.MeshBasicMaterial({
+                map: this.skyTexture,
+                side: THREE.BackSide // Render on inside of cube
+            }));
+        }
+        
+        // Create the mesh with our geometry and materials
+        this.starsBackground = new THREE.Mesh(geometry, materials);
+        
+        // Add to scene
         this.scene.add(this.starsBackground);
+        
+        console.log("Sky background created successfully");
     }
 
      createSun() {
@@ -218,6 +324,18 @@ class UniverseAnimation {
             this.sun.rotation.y += delta * 0.01;
         }
         
+        // Rotate skybox very slowly for a subtle motion effect
+        if (this.starsBackground) {
+            // Use an extremely slow rotation for a subtle effect
+            // This makes it appear as if the background is slowly moving
+            this.starsBackground.rotation.y += delta * 0.002;
+        }
+        
+        // Apply joystick camera movement
+        if (this.joystickActive && (Math.abs(this.joystickPosition.x) > 0.1 || Math.abs(this.joystickPosition.y) > 0.1)) {
+            this.moveCamera(delta);
+        }
+        
         // Update OrbitControls
         this.controls.update();
         
@@ -242,6 +360,28 @@ class UniverseAnimation {
         if (this.controls) {
             this.controls.dispose();
             this.controls = null;
+        }
+
+        // Remove joystick
+        if (this.joystick) {
+            document.removeEventListener('mousemove', this.onJoystickMove.bind(this));
+            document.removeEventListener('mouseup', this.onJoystickEnd.bind(this));
+            document.removeEventListener('touchmove', this.onJoystickMove.bind(this));
+            document.removeEventListener('touchend', this.onJoystickEnd.bind(this));
+            document.removeEventListener('touchcancel', this.onJoystickEnd.bind(this));
+            
+            if (this.joystick.container && this.joystick.container.parentNode) {
+                this.joystick.container.parentNode.removeChild(this.joystick.container);
+            }
+            this.joystick = null;
+        }
+        
+        // Remove state controls
+        if (this.stateButtons) {
+            if (this.stateButtons.container && this.stateButtons.container.parentNode) {
+                this.stateButtons.container.parentNode.removeChild(this.stateButtons.container);
+            }
+            this.stateButtons = null;
         }
 
         // Dispose textures
@@ -296,7 +436,571 @@ class UniverseAnimation {
          console.log(`Universe: setParticleDensity called with ${densityValue}`);
     }
     setPhysicsIntensity(intensityValue) {
+        // We can use this to control joystick sensitivity
+        if (intensityValue >= 0 && intensityValue <= 100) {
+            this.joystickMoveSpeed = 0.2 + (intensityValue / 100) * 1.3; // Map to 0.2 - 1.5 range
+        }
         console.log(`Universe: setPhysicsIntensity called with ${intensityValue}`);
     }
     // --- End Settings --- 
+
+    createJoystick() {
+        // Create joystick container
+        const joystickContainer = document.createElement('div');
+        joystickContainer.className = 'joystick-container';
+        joystickContainer.style.cssText = `
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 100px;
+            height: 100px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            z-index: 1000;
+            touch-action: none;
+            user-select: none;
+        `;
+
+        // Create joystick handle
+        const joystickHandle = document.createElement('div');
+        joystickHandle.className = 'joystick-handle';
+        joystickHandle.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            cursor: pointer;
+        `;
+
+        joystickContainer.appendChild(joystickHandle);
+        document.body.appendChild(joystickContainer);
+        
+        this.joystick = {
+            container: joystickContainer,
+            handle: joystickHandle,
+            containerRect: joystickContainer.getBoundingClientRect(),
+            centerX: 0,
+            centerY: 0
+        };
+        
+        // Calculate center position
+        this.updateJoystickCenter();
+        
+        // Add event listeners
+        this.setupJoystickEvents();
+    }
+
+    updateJoystickCenter() {
+        const rect = this.joystick.container.getBoundingClientRect();
+        this.joystick.containerRect = rect;
+        this.joystick.centerX = rect.left + rect.width / 2;
+        this.joystick.centerY = rect.top + rect.height / 2;
+    }
+
+    setupJoystickEvents() {
+        // Mouse events
+        this.joystick.container.addEventListener('mousedown', this.onJoystickStart.bind(this));
+        document.addEventListener('mousemove', this.onJoystickMove.bind(this));
+        document.addEventListener('mouseup', this.onJoystickEnd.bind(this));
+        
+        // Touch events for mobile
+        this.joystick.container.addEventListener('touchstart', this.onJoystickStart.bind(this));
+        document.addEventListener('touchmove', this.onJoystickMove.bind(this));
+        document.addEventListener('touchend', this.onJoystickEnd.bind(this));
+        document.addEventListener('touchcancel', this.onJoystickEnd.bind(this));
+        
+        // Window resize
+        window.addEventListener('resize', this.updateJoystickCenter.bind(this));
+    }
+
+    onJoystickStart(event) {
+        event.preventDefault();
+        this.joystickActive = true;
+        this.updateJoystickCenter();
+        this.onJoystickMove(event);
+    }
+
+    onJoystickMove(event) {
+        if (!this.joystickActive) return;
+        
+        event.preventDefault();
+        
+        // Get touch/mouse position
+        let clientX, clientY;
+        if (event.touches && event.touches.length > 0) {
+            clientX = event.touches[0].clientX;
+            clientY = event.touches[0].clientY;
+        } else {
+            clientX = event.clientX;
+            clientY = event.clientY;
+        }
+        
+        // Calculate joystick position
+        const containerRadius = this.joystick.containerRect.width / 2;
+        const maxDistance = containerRadius - 20; // Subtract handle radius
+        
+        // Calculate distance from center
+        let dx = clientX - this.joystick.centerX;
+        let dy = clientY - this.joystick.centerY;
+        
+        // Limit to container radius
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > maxDistance) {
+            const angle = Math.atan2(dy, dx);
+            dx = Math.cos(angle) * maxDistance;
+            dy = Math.sin(angle) * maxDistance;
+        }
+        
+        // Update handle position
+        this.joystick.handle.style.transform = `translate(${dx}px, ${dy}px)`;
+        
+        // Normalize for camera movement (range -1 to 1)
+        this.joystickPosition.x = dx / maxDistance;
+        this.joystickPosition.y = dy / maxDistance;
+    }
+
+    onJoystickEnd(event) {
+        if (!this.joystickActive) return;
+        
+        this.joystickActive = false;
+        this.joystickPosition.x = 0;
+        this.joystickPosition.y = 0;
+        
+        // Reset handle position with animation
+        this.joystick.handle.style.transition = 'transform 0.2s ease-out';
+        this.joystick.handle.style.transform = 'translate(0px, 0px)';
+        
+        // Remove transition after animation completes
+        setTimeout(() => {
+            this.joystick.handle.style.transition = '';
+        }, 200);
+    }
+
+    moveCamera(delta) {
+        // Get camera direction vectors
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+        
+        // Scale movement by joystick position and speed
+        forward.multiplyScalar(-this.joystickPosition.y * this.joystickMoveSpeed);
+        right.multiplyScalar(this.joystickPosition.x * this.joystickMoveSpeed);
+        
+        // Apply movement
+        const movement = new THREE.Vector3().addVectors(forward, right);
+        this.camera.position.add(movement);
+        this.controls.target.add(movement);
+    }
+
+    createStateControls() {
+        // Create container for state buttons
+        const stateContainer = document.createElement('div');
+        stateContainer.className = 'universe-state-controls';
+        stateContainer.style.cssText = `
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 1000;
+        `;
+        
+        // Create save button
+        const saveButton = document.createElement('button');
+        saveButton.textContent = 'Save Position';
+        saveButton.className = 'universe-state-button';
+        saveButton.style.cssText = `
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        `;
+        saveButton.addEventListener('mouseenter', () => {
+            saveButton.style.backgroundColor = 'rgba(40, 40, 40, 0.6)';
+        });
+        saveButton.addEventListener('mouseleave', () => {
+            saveButton.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        });
+        saveButton.addEventListener('click', () => this.promptSaveState());
+        
+        // Create slots container
+        const slotsContainer = document.createElement('div');
+        slotsContainer.className = 'universe-state-slots';
+        slotsContainer.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        `;
+        
+        stateContainer.appendChild(saveButton);
+        stateContainer.appendChild(slotsContainer);
+        document.body.appendChild(stateContainer);
+        
+        this.stateButtons = {
+            container: stateContainer,
+            saveButton: saveButton,
+            slotsContainer: slotsContainer
+        };
+    }
+
+    loadSavedStates() {
+        try {
+            const savedStateJson = localStorage.getItem('universeAnimationStates');
+            if (savedStateJson) {
+                this.savedStates = JSON.parse(savedStateJson);
+                this.updateStateSlots();
+            }
+        } catch (error) {
+            console.error('Error loading saved states:', error);
+            this.savedStates = {};
+        }
+    }
+
+    saveStatesToStorage() {
+        try {
+            localStorage.setItem('universeAnimationStates', JSON.stringify(this.savedStates));
+        } catch (error) {
+            console.error('Error saving states to storage:', error);
+        }
+    }
+
+    getCurrentState() {
+        return {
+            camera: {
+                position: {
+                    x: this.camera.position.x,
+                    y: this.camera.position.y,
+                    z: this.camera.position.z
+                },
+                rotation: {
+                    x: this.camera.rotation.x,
+                    y: this.camera.rotation.y,
+                    z: this.camera.rotation.z
+                }
+            },
+            controls: {
+                target: {
+                    x: this.controls.target.x,
+                    y: this.controls.target.y,
+                    z: this.controls.target.z
+                }
+            },
+            timestamp: Date.now(),
+            description: ''
+        };
+    }
+
+    promptSaveState() {
+        // Create a modal for saving state
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        `;
+        
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background-color: rgba(30, 30, 30, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            width: 300px;
+            font-family: 'JetBrains Mono', monospace;
+            color: white;
+        `;
+        
+        const title = document.createElement('h3');
+        title.textContent = 'Save Current Position';
+        title.style.margin = '0 0 15px 0';
+        
+        const input = document.createElement('input');
+        input.placeholder = 'Position description';
+        input.type = 'text';
+        input.style.cssText = `
+            width: 100%;
+            padding: 8px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            color: white;
+            margin-bottom: 15px;
+            font-family: inherit;
+        `;
+        
+        const buttons = document.createElement('div');
+        buttons.style.cssText = `
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        `;
+        
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.style.cssText = `
+            background-color: rgba(60, 60, 60, 0.7);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: inherit;
+        `;
+        
+        const saveButton = document.createElement('button');
+        saveButton.textContent = 'Save';
+        saveButton.style.cssText = `
+            background-color: rgba(0, 120, 210, 0.7);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: inherit;
+        `;
+        
+        buttons.appendChild(cancelButton);
+        buttons.appendChild(saveButton);
+        
+        dialog.appendChild(title);
+        dialog.appendChild(input);
+        dialog.appendChild(buttons);
+        modal.appendChild(dialog);
+        
+        document.body.appendChild(modal);
+        
+        // Focus the input field
+        setTimeout(() => {
+            input.focus();
+        }, 100);
+        
+        // Event handlers
+        cancelButton.addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        saveButton.addEventListener('click', () => {
+            const description = input.value.trim() || `Position ${Object.keys(this.savedStates).length + 1}`;
+            const currentState = this.getCurrentState();
+            currentState.description = description;
+            
+            // Generate a unique key
+            const stateKey = `state_${Date.now()}`;
+            this.savedStates[stateKey] = currentState;
+            
+            // Update UI and save to localStorage
+            this.updateStateSlots();
+            this.saveStatesToStorage();
+            
+            document.body.removeChild(modal);
+        });
+        
+        // Close on escape key
+        const handleKeydown = (e) => {
+            if (e.key === 'Escape') {
+                document.body.removeChild(modal);
+                document.removeEventListener('keydown', handleKeydown);
+            } else if (e.key === 'Enter') {
+                saveButton.click();
+                document.removeEventListener('keydown', handleKeydown);
+            }
+        };
+        document.addEventListener('keydown', handleKeydown);
+    }
+
+    updateStateSlots() {
+        // Clear existing slots
+        while (this.stateButtons.slotsContainer.firstChild) {
+            this.stateButtons.slotsContainer.removeChild(this.stateButtons.slotsContainer.firstChild);
+        }
+        
+        // Sort states by timestamp, most recent first
+        const sortedStates = Object.entries(this.savedStates)
+            .sort(([, a], [, b]) => b.timestamp - a.timestamp);
+        
+        // Add slots for each saved state
+        sortedStates.forEach(([key, state]) => {
+            const slotButton = document.createElement('div');
+            slotButton.className = 'universe-state-slot';
+            slotButton.style.cssText = `
+                background-color: rgba(0, 0, 0, 0.5);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 4px;
+                padding: 6px 8px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 11px;
+                color: white;
+                cursor: pointer;
+            `;
+            
+            const name = document.createElement('span');
+            name.textContent = state.description;
+            name.style.flex = '1';
+            
+            const actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.gap = '4px';
+            
+            const goButton = document.createElement('button');
+            goButton.innerHTML = '&#9654;'; // Play symbol
+            goButton.title = 'Go to position';
+            goButton.style.cssText = `
+                background: none;
+                border: none;
+                color: rgba(100, 255, 100, 0.8);
+                cursor: pointer;
+                font-size: 11px;
+                padding: 2px 4px;
+            `;
+            
+            const deleteButton = document.createElement('button');
+            deleteButton.innerHTML = '&#10005;'; // X symbol
+            deleteButton.title = 'Delete position';
+            deleteButton.style.cssText = `
+                background: none;
+                border: none;
+                color: rgba(255, 100, 100, 0.8);
+                cursor: pointer;
+                font-size: 11px;
+                padding: 2px 4px;
+            `;
+            
+            actions.appendChild(goButton);
+            actions.appendChild(deleteButton);
+            
+            slotButton.appendChild(name);
+            slotButton.appendChild(actions);
+            
+            this.stateButtons.slotsContainer.appendChild(slotButton);
+            
+            // Event handlers
+            slotButton.addEventListener('mouseenter', () => {
+                slotButton.style.backgroundColor = 'rgba(40, 40, 40, 0.6)';
+            });
+            
+            slotButton.addEventListener('mouseleave', () => {
+                slotButton.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            });
+            
+            // Load state on click
+            goButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.loadState(key);
+            });
+            
+            // Also load on slot click
+            slotButton.addEventListener('click', () => {
+                this.loadState(key);
+            });
+            
+            // Delete state
+            deleteButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.deleteState(key);
+            });
+        });
+    }
+
+    loadState(stateKey) {
+        const state = this.savedStates[stateKey];
+        if (!state) return;
+        
+        // Set camera position
+        this.camera.position.set(
+            state.camera.position.x,
+            state.camera.position.y,
+            state.camera.position.z
+        );
+        
+        // Set camera rotation
+        this.camera.rotation.set(
+            state.camera.rotation.x,
+            state.camera.rotation.y,
+            state.camera.rotation.z
+        );
+        
+        // Set controls target
+        this.controls.target.set(
+            state.controls.target.x,
+            state.controls.target.y,
+            state.controls.target.z
+        );
+        
+        // Update controls
+        this.controls.update();
+        
+        // Show feedback
+        this.showToast(`Loaded position: ${state.description}`);
+    }
+
+    deleteState(stateKey) {
+        if (!this.savedStates[stateKey]) return;
+        
+        const description = this.savedStates[stateKey].description;
+        delete this.savedStates[stateKey];
+        
+        // Update UI and save to localStorage
+        this.updateStateSlots();
+        this.saveStatesToStorage();
+        
+        // Show feedback
+        this.showToast(`Deleted position: ${description}`);
+    }
+
+    showToast(message) {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            z-index: 2000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        `;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        // Animate in
+        setTimeout(() => {
+            toast.style.opacity = '1';
+        }, 10);
+        
+        // Remove after delay
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    document.body.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
+    }
 } 
